@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, Copy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,7 @@ export default function Store() {
   const [copied, setCopied] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const handleSetStoreRouter = ({
     storeUrl,
@@ -37,39 +38,52 @@ export default function Store() {
   };
 
   const handleSubmit = () => {
+    setCreating(true);
     const lines = cardList
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line) => line.replace(/^\d+\s*/, ""));
 
-    const mappingLines = lines.map((cur: any) => {
-      return {
-        name: cur,
-        store: storeUrl,
-        path: handleSetStoreRouter({
-          storeUrl,
-          cardName: cur,
-        }),
-      };
-    });
+    try {
+      const mappingLines = lines.map((cur: any) => {
+        return {
+          name: cur,
+          store: storeUrl,
+          path: handleSetStoreRouter({
+            storeUrl,
+            cardName: cur,
+          }),
+        };
+      });
 
-    setSubmittedCards([...mappingLines]);
-
+      setSubmittedCards([...mappingLines]);
+      setTimeout(() => {
+        if (listRef.current) {
+          listRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }, 100);
+    } catch (error) {
+      console.log(error);
+    }
     setTimeout(() => {
-      if (listRef.current) {
-        listRef.current.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
-    }, 100);
+      setCreating(false);
+    }, 500);
   };
 
   const handleCopy = () => {
     if (submittedCards.length > 0) {
+      // Find the store name based on the selected storeUrl
+      const store = storesMTG.find((s) => s.path === storeUrl);
+      const storeTitle = store ? `${store.nome} ` : "Lista de cards";
       navigator.clipboard.writeText(
-        submittedCards.map((card) => `🔗 ${card.name} - ${card.path}`).join("\n")
+        [
+          storeTitle,
+          ...submittedCards.map((card) => `🔗 ${card.name} - ${card.path}`),
+        ].join("\n"),
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -94,7 +108,9 @@ export default function Store() {
         {/* Formulário */}
         <Card className=" shadow-lg">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold">Adicionar Cards da Loja</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              Adicionar Cards da Loja
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div style={{ zIndex: 100 }}>
@@ -140,18 +156,19 @@ export default function Store() {
             <Button
               className="bg-zinc-950 text-white font-bold py-2 px-4 rounded w-full cursor-pointer"
               onClick={handleSubmit}
+              disabled={!storeUrl || !cardList || creating}
             >
-              Criar lista
+              {creating ? `Gerando...` : "Gerar Lista de Cards"}
             </Button>
           </CardContent>
         </Card>
 
         {/* Lista gerada */}
-        {submittedCards.length > 0 && (
+        {submittedCards.length > 0 && !creating && (
           <div className="w-full" ref={listRef as any}>
             <Card className="shadow-lg bg-white">
               <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-10 bg-white ">
-                <CardTitle className="text-2xl font-bold">Lista Gerada</CardTitle>
+                <CardTitle className="text-2xl font-bold">Lista</CardTitle>
                 <Button
                   variant="outline"
                   size="sm"
@@ -167,7 +184,11 @@ export default function Store() {
                   {submittedCards.map((card, index) => (
                     <li key={index} className="text-sm break-all">
                       <b>🔗 {card.name}</b> -{" "}
-                      <a href={card.path} style={{ color: "#06b6d4" }} target="_blank">
+                      <a
+                        href={card.path}
+                        style={{ color: "#06b6d4" }}
+                        target="_blank"
+                      >
                         {card.path}
                       </a>
                     </li>

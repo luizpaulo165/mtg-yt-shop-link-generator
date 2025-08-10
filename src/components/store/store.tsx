@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Copy } from "lucide-react";
+import { ArrowUp, Copy, FileText, Link } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Select,
@@ -12,6 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { normalizeData } from "@/services/normalize-data";
+import { Input } from "../ui/input";
+import urlCodeText from "@/services/url-code";
 
 const storesMTG = [
   { nome: "Barão Geek House", path: "https://www.baraogeekhouse.com.br/" },
@@ -20,12 +24,34 @@ const storesMTG = [
 
 export default function Store() {
   const [storeUrl, setStoreUrl] = useState("");
+  const [otherStoreUrl, setOtherStoreUrl] = useState("");
+  const [storeSelected, setStoreSelected] = useState("");
   const [cardList, setCardList] = useState("");
   const [submittedCards, setSubmittedCards] = useState([] as any[]);
   const [copied, setCopied] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [creating, setCreating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleClick() {
+    fileInputRef.current?.click();
+  }
+
+  const handleSelectStore = (value: string, type: string) => {
+    console.log(value);
+    if (type === "select") {
+      setStoreUrl(value);
+      setOtherStoreUrl("");
+    }
+    if (type === "input") {
+      setOtherStoreUrl(value);
+      setStoreUrl("");
+    }
+
+    setStoreSelected(value);
+    setSubmittedCards([]);
+  };
 
   const handleSetStoreRouter = ({
     storeUrl,
@@ -34,7 +60,9 @@ export default function Store() {
     storeUrl: string;
     cardName: string;
   }) => {
-    return `${storeUrl}?view=ecom%2Fitens&page=1&id=27364&comdesconto=&busca=${cardName}&txt_filtro_multiestoque=&txt_order=1&txt_limit=120&txt_estoque=1&`;
+    const normilizedCardName = urlCodeText(cardName);
+
+    return `${storeUrl}?view=ecom%2Fitens&searchExactMatch=&busca=${normilizedCardName}&txt_filtro_multiestoque=&txt_order=1&txt_limit=120&txt_filtro_multiestoque=0&btFiltrar=Filtrar`;
   };
 
   const handleSubmit = () => {
@@ -51,7 +79,7 @@ export default function Store() {
           name: cur,
           store: storeUrl,
           path: handleSetStoreRouter({
-            storeUrl,
+            storeUrl: storeSelected,
             cardName: cur,
           }),
         };
@@ -65,7 +93,7 @@ export default function Store() {
             block: "start",
           });
         }
-      }, 100);
+      }, 300);
     } catch (error) {
       console.log(error);
     }
@@ -76,18 +104,47 @@ export default function Store() {
 
   const handleCopy = () => {
     if (submittedCards.length > 0) {
-      // Find the store name based on the selected storeUrl
       const store = storesMTG.find((s) => s.path === storeUrl);
       const storeTitle = store ? `${store.nome} ` : "Lista de cards";
       navigator.clipboard.writeText(
         [
           storeTitle,
           ...submittedCards.map((card) => `🔗 ${card.name} - ${card.path}`),
-        ].join("\n"),
+        ].join("\n")
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleList = (data: any) => {
+    const value = Array.isArray(data)
+      ? data.map((item: any) => normalizeData(item)).join("\n")
+      : normalizeData(data.target.value);
+
+    setCardList(value);
+  };
+
+  const handleImportTxt = (event: any) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    setSubmittedCards([]);
+
+    reader.onload = (e) => {
+      const text = e.target?.result;
+
+      if (typeof text === "string") {
+        setCardList(normalizeData(text));
+      }
+    };
+
+    reader.onerror = (e) => {
+      console.error("Erro ao ler arquivo", e);
+    };
+
+    reader.readAsText(file);
   };
 
   useEffect(() => {
@@ -103,60 +160,70 @@ export default function Store() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="flex flex-col md:flex-column gap-6 w-full max-w-[720px]">
+    <div className=" min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-[720px] flex align-top justify-start gap-2 flex-col">
         {/* Formulário */}
-        <Card className=" shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">
-              Adicionar Cards da Loja
-            </CardTitle>
-          </CardHeader>
+        <Card className={`w-full shadow-lg`}>
           <CardContent className="space-y-4">
-            <div style={{ zIndex: 100 }}>
-              <label className="text-sm font-medium">Escolha a loja</label>
-              {/* <Input
-                type="url"
-                placeholder="https://minhaloja.com"
-                value={storeUrl}
-                onChange={(e) => setStoreUrl(e.target.value)}
-                className="mt-1"
-              /> */}
-              <Select value={storeUrl} onValueChange={setStoreUrl}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Selecione uma loja" />
-                </SelectTrigger>
-                <SelectContent style={{ backgroundColor: "#fff" }}>
-                  <SelectGroup>
-                    <SelectLabel>Lojas</SelectLabel>
-                    {storesMTG.map((store) => (
-                      <SelectItem
-                        key={store.nome}
-                        value={store.path}
-                        onClick={() => setStoreUrl(store.path)}
-                      >
-                        {store.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+            <div style={{ zIndex: 100, marginBlockEnd: 30 }}>
+              <label className="text-sm font-medium">Escolha a loja parceira</label>
+              <div className="flex align-center justify-between gap-2 ">
+                <Select
+                  value={storeUrl}
+                  onValueChange={(e) => handleSelectStore(e, "select")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione uma loja" />
+                  </SelectTrigger>
+                  <SelectContent style={{ backgroundColor: "#fff" }}>
+                    <SelectGroup>
+                      <SelectLabel>Lojas</SelectLabel>
+                      {storesMTG.map((store) => (
+                        <SelectItem key={store.nome} value={store.path}>
+                          {store.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <span className="flex items-center justify-center">ou</span>
+                <Input
+                  type="url"
+                  placeholder="sua loja favorita"
+                  value={otherStoreUrl}
+                  onChange={(e) => handleSelectStore(e.target.value, "input")}
+                />
+              </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium">Lista de Cards</label>
+              <div className="flex items-center justify-between gap-2 mb-[16px]">
+                <label className="text-sm font-medium">Sua Lista</label>
+                <div className="grid max-w-sm items-center gap-3">
+                  <Button onClick={handleClick}>
+                    <FileText />
+                    Importar .txt
+                  </Button>
+                  <Input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImportTxt}
+                    className="hidden"
+                  />
+                </div>
+              </div>
               <Textarea
                 placeholder="Insira um card por linha..."
                 value={cardList}
-                onChange={(e) => setCardList(e.target.value)}
+                onChange={(e) => handleList(e)}
                 className="mt-1 min-h-[150px]"
               />
             </div>
 
             <Button
-              className="bg-zinc-950 text-white font-bold py-2 px-4 rounded w-full cursor-pointer"
+              className="font-bold py-2 px-4 rounded w-full cursor-pointer"
               onClick={handleSubmit}
-              disabled={!storeUrl || !cardList || creating}
+              disabled={!storeSelected || !cardList || creating}
             >
               {creating ? `Gerando...` : "Gerar Lista de Cards"}
             </Button>
@@ -182,16 +249,17 @@ export default function Store() {
               <CardContent>
                 <ul className="space-y-1">
                   {submittedCards.map((card, index) => (
-                    <li key={index} className="text-sm break-all">
-                      <b>🔗 {card.name}</b> -{" "}
-                      <a
-                        href={card.path}
-                        style={{ color: "#06b6d4" }}
-                        target="_blank"
-                      >
-                        {card.path}
-                      </a>
-                    </li>
+                    <Alert key={index}>
+                      <Link />
+                      <AlertTitle>
+                        <b>{card.name}</b>
+                      </AlertTitle>
+                      <AlertDescription className="break-all">
+                        <a href={card.path} style={{ color: "#06b6d4" }} target="_blank">
+                          {card.path}
+                        </a>
+                      </AlertDescription>
+                    </Alert>
                   ))}
                 </ul>
               </CardContent>
@@ -199,15 +267,28 @@ export default function Store() {
           </div>
         )}
       </div>
-      {isVisible && (
-        <Button
-          onClick={scrollToTop}
-          size="icon"
-          className="fixed bottom-6 right-6 rounded-full shadow-lg hover:scale-105 transition-transform bg-black text-white"
-        >
-          <ArrowUp className="h-5 w-5" />
-        </Button>
-      )}
+      <div className="fixed bottom-6 right-6 grid">
+        {submittedCards.length > 0 && !creating && (
+          <Button
+            onClick={() => {
+              listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="fixed bottom-20 right-6 rounded-full shadow-lg bg-cyan-600 text-white hover:bg-cyan-700 transition-colors"
+          >
+            Ir para Lista
+          </Button>
+        )}
+
+        {isVisible && (
+          <Button
+            onClick={scrollToTop}
+            size="icon"
+            className=" rounded-full shadow-lg hover:scale-105 transition-transform bg-black text-white"
+          >
+            <ArrowUp className="h-5 w-5" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
